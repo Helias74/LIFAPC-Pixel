@@ -166,7 +166,7 @@ bool Image::exporterPGM(const std::string& nomFichier, int maxVal = 255)
 
 void Image::calculCapacitePixel(unsigned int x, unsigned int y, double sigma, double alpha)
 {
-    Pixel& p = tab[y*NbColonne + x];
+    Pixel& p = tab[y * NbColonne + x];
 
     int I = p.intensite;
 
@@ -212,6 +212,262 @@ void Image::calculCapacitesImage(double sigma, double alpha)
 
 
 
+bool Image::findPath(std::vector<Direction> &chemin) {
+
+    // Dimensions totales du graphe
+    unsigned int W = NbColonne;
+    unsigned int H = NbLigne;
+
+    // Pour stocker le parent : direction par laquelle on est arrivé
+    std::vector<int> parent(W * H, -1);
+
+    // File BFS
+    std::queue<Node> Q;
+
+    // Point de départ : SOURCE (virtuel)
+    // On met tous les pixels atteignables par SOURCE dans la file
+    for (unsigned int y = 0; y < H; y++) {
+        for (unsigned int x = 0; x < W; x++) {
+
+            Pixel &p = tab[positionPixel(x,y)];
+
+            // Cap résiduelle depuis la SOURCE
+            if (p.capacite[SOURCE] > p.flot[SOURCE]) {
+                Q.push({x,y});
+                parent[positionPixel(x,y)] = SOURCE;
+            }
+        }
+    }
+
+    // BFS NORMAL
+    while (!Q.empty()) {
+        Node u = Q.front(); 
+        Q.pop();
+
+        Pixel P = tab[positionPixel(u.x, u.y)];
+
+        // Test vers PUITS (arrivée)
+        if (P.capacite[PUIT] > P.flot[PUIT]) {
+
+            // Reconstruire le chemin
+            chemin.clear();
+            chemin.push_back(PUIT);
+
+            unsigned int cx = u.x;
+            unsigned int cy = u.y;
+
+            while (parent[positionPixel(cx,cy)] != SOURCE) {
+                Direction d = (Direction)parent[positionPixel(cx,cy)];
+                chemin.push_back(d);
+
+                // Reculer dans l’image
+                if (d == NORD) cy++;
+                else if (d == SUD) cy--;
+                else if (d == EST) cx--;
+                else if (d == OUEST) cx++;
+            }
+
+            chemin.push_back(SOURCE);
+            std::reverse(chemin.begin(), chemin.end());
+            return true;
+        }
+
+        // 4 directions normales
+        static Direction dirList[4] = {NORD, SUD, EST, OUEST};
+
+        for (Direction d : dirList) {
+
+            // Trouver voisin
+            Pixel v = accesEntourage(u.x, u.y, d);
+
+            // Si voisin n'existe pas → OK accesEntourage te renvoie erreur
+            if (!pixelExiste(v.PosX, v.PosY)) continue;
+
+            unsigned int posV = positionPixel(v.PosX, v.PosY);
+
+            // Déjà visité ?
+            if (parent[posV] != -1) continue;
+
+            // Résiduel = cap - flot (arc direct)
+            Pixel &pU = tab[positionPixel(u.x, u.y)];
+            int residuel = (int)pU.capacite[d] - (int)pU.flot[d];
+
+            if (residuel > 0) {
+                parent[posV] = d; // On note par quelle direction on y arrive
+                Q.push({v.PosX, v.PosY});
+            }
+        }
+    }
+
+    // AUCUN chemin trouvé
+    return false;
+}
+
+
+
+unsigned int Image::calculGoulot(unsigned int px, unsigned int py, const std::vector<int>& parent)
+{
+    unsigned int bottleneck = UINT_MAX;
+
+    // Position actuelle = pixel menant vers le PUITS
+    unsigned int cx = px;
+    unsigned int cy = py;
+
+    while (true) {
+
+        int p = parent[positionPixel(cx, cy)];
+
+        // ----- 1) Cas où le parent est la SOURCE -----
+        if (p == SOURCE) {
+
+            Pixel &child = tab[positionPixel(cx, cy)];
+            unsigned int res = child.capacite[SOURCE] - child.flot[SOURCE];
+
+            bottleneck = std::min(bottleneck, res);
+            break;
+        }
+
+        // ----- 2) Cas où le parent est le PUITS (normalement jamais ici) -----
+        if (p == PUIT) {
+            break;
+        }
+
+        // ----- 3) Parent = index dans le tableau -----
+
+        unsigned int pxp = p % NbColonne;   // position X du parent
+        unsigned int pyp = p / NbColonne;   // position Y du parent
+
+        Pixel &par = tab[p];
+        Pixel &cur = tab[positionPixel(cx, cy)];
+
+        // Déterminer la direction (parent → enfant)
+        Direction d;
+
+        if (pxp + 1 == cx)      d = EST;
+        else if (pxp - 1 == cx) d = OUEST;
+        else if (pyp + 1 == cy) d = SUD;
+        else                    d = NORD;
+
+        // capacité résiduelle entre parent → enfant
+        unsigned int resid = par.capacite[d] - par.flot[d];
+
+        bottleneck = std::min(bottleneck, resid);
+
+        // on monte d’un cran dans le chemin
+        cx = pxp;
+        cy = pyp;
+    }
+
+    return bottleneck;
+}
+
+//Fonction non membre (pas ouf de mettre dans classe )
+void Image::afficherChemin(const std::vector<Direction>& chemin) {
+    for (Direction d : chemin) {
+        switch(d) {
+            case EST:    std::cout << "EST "; break;
+            case OUEST:  std::cout << "OUEST "; break;
+            case NORD:   std::cout << "NORD "; break;
+            case SUD:    std::cout << "SUD "; break;
+            case SOURCE: std::cout << "SOURCE "; break;
+            case PUIT:   std::cout << "PUITS "; break;
+            //default:     std::cout << "? "; break;
+        }
+    }
+    std::cout << std::endl;
+}
+
+
+Direction Image::getDirection(unsigned int parentId, unsigned int childId) {
+    unsigned int px = parentId / NbColonne;
+    unsigned int py = parentId % NbColonne;
+    unsigned int cx = childId / NbColonne;
+    unsigned int cy = childId % NbColonne;
+
+    if (cx == px - 1 && cy == py) return NORD;
+    if (cx == px + 1 && cy == py) return SUD;
+    if (cx == px && cy == py + 1) return EST;
+    if (cx == px && cy == py - 1) return OUEST;
+
+    // arcs spéciaux vers SOURCE ou PUITS
+    if (parentId == SOURCE) return SOURCE;
+    if (childId == PUIT) return PUIT;
+
+    // Par défaut (erreur)
+    std::cerr << "Erreur : direction impossible entre parentId = " 
+              << parentId << " et childId = " << childId << std::endl;
+    return NORD; // valeur par défaut
+}
+
+Direction Image::getInverseDirection(Direction dir) {
+    switch(dir) {
+        case NORD: return SUD;
+        case SUD:  return NORD;
+        case EST:  return OUEST;
+        case OUEST:return EST;
+        case SOURCE: return PUIT; // pour le graphe résiduel, inverse de SOURCE -> pixel
+        case PUIT:  return SOURCE; // inverse de pixel -> PUITS
+        default:
+            std::cerr << "Erreur : direction inconnue pour getInverseDirection" << std::endl;
+            return NORD; // valeur par défaut
+    }
+}
+
+
+
+void Image::appliquerFlot(unsigned int finX, unsigned int finY,
+                                const std::vector<int>& parent, unsigned int delta)
+{
+    unsigned int id = positionPixel(finX, finY);
+
+    while (parent[id] != SOURCE && parent[id] != -1) {
+        unsigned int parentId = parent[id];
+
+        // Déterminer la direction de parent -> id
+        Direction dir = getDirection(parentId, id); 
+
+        // Ajouter le flot sur l’arc
+        tab[parentId].flot[dir] += delta;
+
+        // Mettre à jour l’arc inverse pour le graphe résiduel
+        Direction dirInverse = getInverseDirection(dir);
+        tab[id].flot[dirInverse] -= delta;
+
+        // Remonter dans le chemin
+        id = parentId;
+    }
+
+    // Enfin, gérer le dernier arc depuis la SOURCE
+    if (parent[id] == SOURCE) {
+        Direction dir = SOURCE; // arc source->id
+        tab[id].flot[dir] += delta;
+    }
+}
+
+
+void Image::flotMaximal() {
+    std::vector<int> parent(NbLigne * NbColonne, -1); // tableau parent pour BFS
+    bool cheminExiste = true;
+
+    while (cheminExiste) {
+        // 1️⃣ Trouver un chemin non saturé S -> P
+        cheminExiste = findPath(parent); // à coder : BFS remplissant parent[]
+        if (!cheminExiste) break;
+
+        // 2️⃣ Calculer le goulot de ce chemin
+        unsigned int finX, finY;
+        // récupérer les coordonnées du PUITS ou du pixel final du chemin
+        getPixelFinal(parent, finX, finY); // fonction à coder selon BFS
+        unsigned int delta = calculGoulot(finX, finY, parent);
+
+        // 3️⃣ Appliquer le flot sur tout le chemin
+        appliquerFlot(finX, finY, parent, delta);
+    }
+
+    std::cout << "Flot maximal appliqué. Tous les chemins S -> P sont saturés." << std::endl;
+}
+
+
 
 
 
@@ -220,6 +476,10 @@ int main() {
     image.importePGM("test.pgm");
     image.calculCapacitesImage(15,15);
     image.afficheIntensitie();
+    std::vector<Direction> chemin;
+    image.findPath(chemin);
+    image.afficherChemin(chemin);
+
 
     
     return 0;

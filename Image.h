@@ -5,6 +5,11 @@
 #include <string>
 #include <fstream>
 #include "Pixel.h"
+#include <queue>
+
+struct Node {
+    unsigned int x, y;
+};
 
 
 enum Direction {
@@ -57,7 +62,14 @@ public:
 
     void calculCapacitePixel(unsigned int x, unsigned int y, double sigma, double alpha);
     void calculCapacitesImage(double sigma, double alpha);
-
+    bool findPath(std::vector<Direction> &chemin);
+    unsigned int calculGoulot(unsigned int px, unsigned int py, const std::vector<int>& parent);
+    void afficherChemin(const std::vector<Direction>& chemin);
+    void appliquerFlot(unsigned int finX, unsigned int finY,
+                                const std::vector<int>& parent, unsigned int delta);
+    Direction getDirection(unsigned int parentId, unsigned int childId);
+    Direction getInverseDirection(Direction dir);
+    void flotMaximal();
 
 };
 
