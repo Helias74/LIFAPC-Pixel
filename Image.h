@@ -62,14 +62,19 @@ public:
 
     void calculCapacitePixel(unsigned int x, unsigned int y, double sigma, double alpha);
     void calculCapacitesImage(double sigma, double alpha);
-    bool findPath(std::vector<Direction> &chemin);
-    unsigned int calculGoulot(unsigned int px, unsigned int py, const std::vector<int>& parent);
+    bool findPath(std::vector<Direction> &chemin,
+                     unsigned int &fx, unsigned int &fy);
+
+    unsigned int calculGoulot(unsigned int fx, unsigned int fy,
+                                 const std::vector<Direction>& chemin);
     void afficherChemin(const std::vector<Direction>& chemin);
-    void appliquerFlot(unsigned int finX, unsigned int finY,
-                                const std::vector<int>& parent, unsigned int delta);
-    Direction getDirection(unsigned int parentId, unsigned int childId);
-    Direction getInverseDirection(Direction dir);
     void flotMaximal();
+
+    Direction getInverseDirection(Direction dir);
+    void appliquerFlot(unsigned int fx, unsigned int fy,
+                          const std::vector<Direction>& chemin,
+                          unsigned int delta);
+    void calculerSegmentation();
 
 };
 

@@ -2,7 +2,9 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-
+#include <cmath>
+#include <algorithm>
+#include <climits>
 
 Image::Image() : NbLigne(0), NbColonne(0) {}
 
@@ -10,12 +12,9 @@ Image::Image(unsigned int l, unsigned int c) : NbLigne(l), NbColonne(c) {
     tab.resize(l * c);
 }
 
-//rappel i*c + j
-
 bool Image::pixelExiste(unsigned int i, unsigned int j) {
-    return (j < NbColonne && i < NbLigne);
+    return (i < NbLigne && j < NbColonne);
 }
-
 
 unsigned int Image::getligne() const {
     return NbLigne;
@@ -25,31 +24,44 @@ unsigned int Image::getcolonne() const {
     return NbColonne;
 }
 
-
 unsigned int Image::positionPixel(int i, int j) {
     return i * NbColonne + j;
 }
 
-// Importer un fichier PGM
-
-
 bool Image::importePGM(const std::string& nomFichier) {
     std::ifstream fichier(nomFichier);
     if (!fichier.is_open()) {
-        std::cerr << "Erreur : impossible d’ouvrir le fichier " << nomFichier << std::endl;
+        std::cerr << "Erreur : impossible d'ouvrir le fichier " << nomFichier << std::endl;
         return false;
     }
 
-    std::string PGM;
-    fichier >> PGM;
-    if (PGM != "P2") {
+    std::string ligne;
+    // Ignorer les commentaires et lire P2
+    do {
+        std::getline(fichier, ligne);
+    } while (ligne[0] == '#');
+    
+    if (ligne != "P2") {
         std::cerr << "Erreur : format PGM non supporté (P2 attendu)" << std::endl;
         return false;
     }
 
-    // Lire largeur, hauteur, valeur max
+    // Lire dimensions (en ignorant commentaires)
+    do {
+        std::getline(fichier, ligne);
+    } while (ligne[0] == '#');
+    
+    std::istringstream iss(ligne);
+    iss >> NbColonne >> NbLigne;
+
+    // Lire valeur max
     int maxInt;
-    fichier >> NbColonne >> NbLigne >> maxInt;
+    do {
+        std::getline(fichier, ligne);
+    } while (ligne[0] == '#');
+    
+    std::istringstream iss2(ligne);
+    iss2 >> maxInt;
 
     if (NbColonne <= 0 || NbLigne <= 0 || maxInt != 255) {
         std::cerr << "Erreur : dimensions invalides ou intensité Max != 255" << std::endl;
@@ -58,25 +70,29 @@ bool Image::importePGM(const std::string& nomFichier) {
 
     tab.resize(NbLigne * NbColonne);
 
-    // Lire intensités dans tab + renseigner valeur coord pixel
+    // Lire intensités
     for (unsigned int i = 0; i < NbLigne; i++) {
         for (unsigned int j = 0; j < NbColonne; j++) {
             int val;
             fichier >> val;
-            tab[positionPixel(i, j)].intensite = val;
-            tab[positionPixel(i, j)].PosX = j; //Vérifier si pas d'inversion
-            tab[positionPixel(i, j)].PosY = i; // Idem
+            unsigned int pos = positionPixel(i, j);
+            tab[pos].intensite = val;
+            tab[pos].PosX = j;
+            tab[pos].PosY = i;
+            // Initialiser flots à 0
+            for (int d = 0; d < 6; d++) {
+                tab[pos].flot[d] = 0;
+            }
         }
     }
 
     return true;
 }
 
-
 bool Image::sauvgardePGM(const std::string& nomFichier) const {
     std::ofstream file(nomFichier);
     if (!file.is_open()) {
-        std::cerr << "Erreur : impossible d’ouvrir le fichier " << nomFichier << std::endl;
+        std::cerr << "Erreur : impossible d'ouvrir le fichier " << nomFichier << std::endl;
         return false;
     }
 
@@ -94,10 +110,6 @@ bool Image::sauvgardePGM(const std::string& nomFichier) const {
     return true;
 }
 
-// ------------------------------------
-// Afficher intensités
-// ------------------------------------
-
 void Image::afficheIntensitie() const {
     for (unsigned int i = 0; i < NbLigne; ++i) {
         for (unsigned int j = 0; j < NbColonne; ++j) {
@@ -109,158 +121,139 @@ void Image::afficheIntensitie() const {
 
 Pixel Image::getPixel1D(unsigned int t) {
     if (t >= tab.size()) {
-        std::cerr << "Erreur : index " << t << " hors limites dans getPixel1D()" << std::endl;
-        return Pixel(); // renvoie un pixel par défaut (0)
+        std::cerr << "Erreur : index " << t << " hors limites" << std::endl;
+        return Pixel();
     }
     return tab[t];
 }
 
-
-Pixel& Image::accesEntourage(unsigned int x,unsigned int y,Direction dir) {
+// CORRECTION: La logique de direction était inversée
+Pixel& Image::accesEntourage(unsigned int x, unsigned int y, Direction dir) {
     int nx = x;
     int ny = y;
 
-    if (dir == OUEST && pixelExiste(x - 1, y)) nx = x - 1;
-    else if (dir == EST && pixelExiste(x + 1, y)) nx = x + 1;
-    else if (dir == NORD && pixelExiste(x, y - 1)) ny = y - 1;
-    else if (dir == SUD && pixelExiste(x, y + 1)) ny = y + 1;
-    else {
-        std::cout << "Direction non valide ou pixel inexistant" << std::endl;
-        return tab[y * NbColonne + x]; // retourne pixel original
+    // IMPORTANT: i=ligne (y), j=colonne (x)
+    if (dir == OUEST && x > 0) {
+        nx = x - 1;  // colonne -1
+    } else if (dir == EST && x < NbColonne - 1) {
+        nx = x + 1;  // colonne +1
+    } else if (dir == NORD && y > 0) {
+        ny = y - 1;  // ligne -1
+    } else if (dir == SUD && y < NbLigne - 1) {
+        ny = y + 1;  // ligne +1
     }
 
-    return tab[ny * NbColonne + nx]; // retourne le vrai pixel
+    return tab[ny * NbColonne + nx];
 }
 
-
-
-
-bool Image::exporterPGM(const std::string& nomFichier, int maxVal = 255)
-{
-    std::ofstream fichier(nomFichier);
-    if (!fichier.is_open()) {
-        std::cerr << "Erreur : impossible de créer le fichier PGM." << std::endl;
-        return false;
-    }
-
-    // --- Écriture de l’en-tête PGM ---
-    fichier << "P2\n";
-    fichier << NbColonne << " " << NbLigne << "\n";
-    fichier << maxVal << "\n";
-
-    // --- Écriture des pixels depuis le tableau 1D tab ---
-    for (unsigned int y = 0; y < NbLigne; y++) {
-        for (unsigned int x = 0; x < NbColonne; x++) {
-            int index = y * NbColonne + x;  // calcul de l'index dans le tableau 1D
-            fichier << tab[index].intensite;
-            if (x < NbColonne - 1) fichier << " ";
-        }
-        fichier << "\n";
-    }
-
-    fichier.close();
-    return true;
+bool Image::exporterPGM(const std::string& nomFichier, int maxVal) {
+    return sauvgardePGM(nomFichier);
 }
 
-
-
-void Image::calculCapacitePixel(unsigned int x, unsigned int y, double sigma, double alpha)
-{
-    Pixel& p = tab[y * NbColonne + x];
-
+void Image::calculCapacitePixel(unsigned int x, unsigned int y, double sigma, double alpha) {
+    unsigned int pos = positionPixel(y, x);  // ATTENTION: i=y, j=x
+    Pixel& p = tab[pos];
+    
     int I = p.intensite;
 
-    if (I == 0) p.capacite[SOURCE] = 0;
-    else p.capacite[SOURCE] = (int)round(-alpha * log((double)I / 255.0) * 100);
+    // Capacités vers SOURCE et PUIT (formules corrigées)
+    if (I == 0) {
+        p.capacite[SOURCE] = 0;
+    } else {
+        p.capacite[SOURCE] = (unsigned int)std::lround(-alpha * std::log((double)I / 255.0));
+    }
 
-    if (I == 255) p.capacite[PUIT] = 0;
-    else p.capacite[PUIT] = (int)round(-alpha * log((double)(255 - I) / 255.0) * 100);
+    if (I == 255) {
+        p.capacite[PUIT] = 0;
+    } else {
+        p.capacite[PUIT] = (unsigned int)std::lround(-alpha * std::log((double)(255 - I) / 255.0));
+    }
 
+    // Capacités vers voisins
+    if (pixelExiste(y - 1, x)) {  // NORD
+        Pixel& n = tab[positionPixel(y - 1, x)];
+        double diff = (double)(I - n.intensite);
+        p.capacite[NORD] = (unsigned int)std::lround(100.0 * std::exp(-(diff * diff) / (2.0 * sigma * sigma)));
+    } else {
+        p.capacite[NORD] = 0;
+    }
 
-    if (pixelExiste(x - 1, y)) {
-        Pixel n = accesEntourage(x, y, NORD);
-        p.capacite[NORD] = (unsigned int)round(100.0 * exp(-((double)(I - n.intensite) * (I - n.intensite)) / (2.0 * sigma * sigma)));
-    } else p.capacite[NORD] = 0;
+    if (pixelExiste(y + 1, x)) {  // SUD
+        Pixel& s = tab[positionPixel(y + 1, x)];
+        double diff = (double)(I - s.intensite);
+        p.capacite[SUD] = (unsigned int)std::lround(100.0 * std::exp(-(diff * diff) / (2.0 * sigma * sigma)));
+    } else {
+        p.capacite[SUD] = 0;
+    }
 
-    if (pixelExiste(x + 1, y)) {
-        Pixel s = accesEntourage(x, y, SUD);
-        p.capacite[SUD] = (unsigned int)round(100.0 * exp(-((double)(I - s.intensite) * (I - s.intensite)) / (2.0 * sigma * sigma)));
-    } else p.capacite[SUD] = 0;
+    if (pixelExiste(y, x - 1)) {  // OUEST
+        Pixel& o = tab[positionPixel(y, x - 1)];
+        double diff = (double)(I - o.intensite);
+        p.capacite[OUEST] = (unsigned int)std::lround(100.0 * std::exp(-(diff * diff) / (2.0 * sigma * sigma)));
+    } else {
+        p.capacite[OUEST] = 0;
+    }
 
-    if (pixelExiste(x, y - 1)) {
-        Pixel o = accesEntourage(x, y, OUEST);
-        p.capacite[OUEST] = (unsigned int)round(100.0 * exp(-((double)(I - o.intensite) * (I - o.intensite)) / (2.0 * sigma * sigma)));
-    } else p.capacite[OUEST] = 0;
-
-    if (pixelExiste(x, y + 1)) {
-        Pixel e = accesEntourage(x, y, EST);
-        p.capacite[EST] = (unsigned int)round(100.0 * exp(-((double)(I - e.intensite) * (I - e.intensite)) / (2.0 * sigma * sigma)));
-    } else p.capacite[EST] = 0;
+    if (pixelExiste(y, x + 1)) {  // EST
+        Pixel& e = tab[positionPixel(y, x + 1)];
+        double diff = (double)(I - e.intensite);
+        p.capacite[EST] = (unsigned int)std::lround(100.0 * std::exp(-(diff * diff) / (2.0 * sigma * sigma)));
+    } else {
+        p.capacite[EST] = 0;
+    }
 }
 
-
-void Image::calculCapacitesImage(double sigma, double alpha)
-{
-    for (unsigned int y = 0; y < NbLigne; y++)
-    {
-        for (unsigned int x = 0; x < NbColonne; x++)
-        {
+void Image::calculCapacitesImage(double sigma, double alpha) {
+    for (unsigned int y = 0; y < NbLigne; y++) {
+        for (unsigned int x = 0; x < NbColonne; x++) {
             calculCapacitePixel(x, y, sigma, alpha);
         }
     }
 }
 
-
-
-bool Image::findPath(std::vector<Direction> &chemin) {
-
-    // Dimensions totales du graphe
+bool Image::findPath(std::vector<Direction> &chemin, unsigned int &fx, unsigned int &fy) {
     unsigned int W = NbColonne;
     unsigned int H = NbLigne;
 
-    // Pour stocker le parent : direction par laquelle on est arrivé
     std::vector<int> parent(W * H, -1);
-
-    // File BFS
     std::queue<Node> Q;
 
-    // Point de départ : SOURCE (virtuel)
-    // On met tous les pixels atteignables par SOURCE dans la file
+    // Pixels atteignables depuis SOURCE
     for (unsigned int y = 0; y < H; y++) {
         for (unsigned int x = 0; x < W; x++) {
-
-            Pixel &p = tab[positionPixel(x,y)];
-
-            // Cap résiduelle depuis la SOURCE
+            Pixel &p = tab[positionPixel(y, x)];
             if (p.capacite[SOURCE] > p.flot[SOURCE]) {
-                Q.push({x,y});
-                parent[positionPixel(x,y)] = SOURCE;
+                Q.push({x, y});
+                parent[positionPixel(y, x)] = SOURCE;
             }
         }
     }
 
-    // BFS NORMAL
+    // BFS
     while (!Q.empty()) {
-        Node u = Q.front(); 
+        Node u = Q.front();
         Q.pop();
 
-        Pixel P = tab[positionPixel(u.x, u.y)];
+        unsigned int pos = positionPixel(u.y, u.x);
+        Pixel& P = tab[pos];
 
-        // Test vers PUITS (arrivée)
+        // Test vers PUIT
         if (P.capacite[PUIT] > P.flot[PUIT]) {
+            fx = u.x;
+            fy = u.y;
 
-            // Reconstruire le chemin
+            // Reconstruction du chemin
             chemin.clear();
             chemin.push_back(PUIT);
 
             unsigned int cx = u.x;
             unsigned int cy = u.y;
 
-            while (parent[positionPixel(cx,cy)] != SOURCE) {
-                Direction d = (Direction)parent[positionPixel(cx,cy)];
+            while (parent[positionPixel(cy, cx)] != SOURCE) {
+                Direction d = (Direction)parent[positionPixel(cy, cx)];
                 chemin.push_back(d);
 
-                // Reculer dans l’image
+                // Reculer
                 if (d == NORD) cy++;
                 else if (d == SUD) cy--;
                 else if (d == EST) cx--;
@@ -272,215 +265,288 @@ bool Image::findPath(std::vector<Direction> &chemin) {
             return true;
         }
 
-        // 4 directions normales
+        // Explorer 4 directions
         static Direction dirList[4] = {NORD, SUD, EST, OUEST};
 
         for (Direction d : dirList) {
+            unsigned int vx = u.x, vy = u.y;
+            
+            if (d == NORD && vy > 0) vy--;
+            else if (d == SUD && vy < H - 1) vy++;
+            else if (d == EST && vx < W - 1) vx++;
+            else if (d == OUEST && vx > 0) vx--;
+            else continue;
 
-            // Trouver voisin
-            Pixel v = accesEntourage(u.x, u.y, d);
+            unsigned int posV = positionPixel(vy, vx);
 
-            // Si voisin n'existe pas → OK accesEntourage te renvoie erreur
-            if (!pixelExiste(v.PosX, v.PosY)) continue;
-
-            unsigned int posV = positionPixel(v.PosX, v.PosY);
-
-            // Déjà visité ?
             if (parent[posV] != -1) continue;
 
-            // Résiduel = cap - flot (arc direct)
-            Pixel &pU = tab[positionPixel(u.x, u.y)];
-            int residuel = (int)pU.capacite[d] - (int)pU.flot[d];
+            Pixel &pU = tab[pos];
+            Pixel &pV = tab[posV];
+            
+            // Capacité résiduelle = Cap(u,v) - F(u,v) + F(v,u)
+            Direction inv = getInverseDirection(d);
+            int residuel = (int)pU.capacite[d] - (int)pU.flot[d] + (int)pV.flot[inv];
 
             if (residuel > 0) {
-                parent[posV] = d; // On note par quelle direction on y arrive
-                Q.push({v.PosX, v.PosY});
+                parent[posV] = d;
+                Q.push({vx, vy});
             }
         }
     }
 
-    // AUCUN chemin trouvé
     return false;
 }
 
-
-
-unsigned int Image::calculGoulot(unsigned int px, unsigned int py, const std::vector<int>& parent)
-{
+unsigned int Image::calculGoulot(unsigned int fx, unsigned int fy, const std::vector<Direction>& chemin) {
     unsigned int bottleneck = UINT_MAX;
 
-    // Position actuelle = pixel menant vers le PUITS
-    unsigned int cx = px;
-    unsigned int cy = py;
+    unsigned int cx = fx;
+    unsigned int cy = fy;
+    
+    // Premier arc: vers PUIT
+    Pixel &pFinal = tab[positionPixel(cy, cx)];
+    unsigned int resPuit = pFinal.capacite[PUIT] - pFinal.flot[PUIT];
+    bottleneck = std::min(bottleneck, resPuit);
 
-    while (true) {
+    for (int i = (int)chemin.size() - 2; i >= 0; i--) {
+        Direction d = chemin[i];
 
-        int p = parent[positionPixel(cx, cy)];
-
-        // ----- 1) Cas où le parent est la SOURCE -----
-        if (p == SOURCE) {
-
-            Pixel &child = tab[positionPixel(cx, cy)];
-            unsigned int res = child.capacite[SOURCE] - child.flot[SOURCE];
-
+        if (d == SOURCE) {
+            Pixel &p = tab[positionPixel(cy, cx)];
+            unsigned int res = p.capacite[SOURCE] - p.flot[SOURCE];
             bottleneck = std::min(bottleneck, res);
             break;
         }
 
-        // ----- 2) Cas où le parent est le PUITS (normalement jamais ici) -----
-        if (p == PUIT) {
-            break;
+        if (d == PUIT) continue;
+
+        // Calculer parent
+        unsigned int px = cx, py = cy;
+        if (d == NORD) py--;
+        else if (d == SUD) py++;
+        else if (d == EST) px--;
+        else if (d == OUEST) px++;
+
+        Pixel &parent = tab[positionPixel(py, px)];
+        Pixel &enfant = tab[positionPixel(cy, cx)];
+        
+        // Selon le sujet: Cap(p,q) - F(p,q) + F(q,p)
+        Direction inv = getInverseDirection(d);
+        int resid = (int)parent.capacite[d] - (int)parent.flot[d] + (int)enfant.flot[inv];
+        
+        if (resid > 0) {
+            bottleneck = std::min(bottleneck, (unsigned int)resid);
+        } else {
+            // Pas de capacité résiduelle, ne devrait pas arriver
+            return 0;
         }
 
-        // ----- 3) Parent = index dans le tableau -----
-
-        unsigned int pxp = p % NbColonne;   // position X du parent
-        unsigned int pyp = p / NbColonne;   // position Y du parent
-
-        Pixel &par = tab[p];
-        Pixel &cur = tab[positionPixel(cx, cy)];
-
-        // Déterminer la direction (parent → enfant)
-        Direction d;
-
-        if (pxp + 1 == cx)      d = EST;
-        else if (pxp - 1 == cx) d = OUEST;
-        else if (pyp + 1 == cy) d = SUD;
-        else                    d = NORD;
-
-        // capacité résiduelle entre parent → enfant
-        unsigned int resid = par.capacite[d] - par.flot[d];
-
-        bottleneck = std::min(bottleneck, resid);
-
-        // on monte d’un cran dans le chemin
-        cx = pxp;
-        cy = pyp;
+        cx = px;
+        cy = py;
     }
 
     return bottleneck;
 }
 
-//Fonction non membre (pas ouf de mettre dans classe )
 void Image::afficherChemin(const std::vector<Direction>& chemin) {
     for (Direction d : chemin) {
         switch(d) {
-            case EST:    std::cout << "EST "; break;
-            case OUEST:  std::cout << "OUEST "; break;
-            case NORD:   std::cout << "NORD "; break;
-            case SUD:    std::cout << "SUD "; break;
+            case EST: std::cout << "EST "; break;
+            case OUEST: std::cout << "OUEST "; break;
+            case NORD: std::cout << "NORD "; break;
+            case SUD: std::cout << "SUD "; break;
             case SOURCE: std::cout << "SOURCE "; break;
-            case PUIT:   std::cout << "PUITS "; break;
-            //default:     std::cout << "? "; break;
+            case PUIT: std::cout << "PUITS "; break;
         }
     }
     std::cout << std::endl;
 }
 
-
-Direction Image::getDirection(unsigned int parentId, unsigned int childId) {
-    unsigned int px = parentId / NbColonne;
-    unsigned int py = parentId % NbColonne;
-    unsigned int cx = childId / NbColonne;
-    unsigned int cy = childId % NbColonne;
-
-    if (cx == px - 1 && cy == py) return NORD;
-    if (cx == px + 1 && cy == py) return SUD;
-    if (cx == px && cy == py + 1) return EST;
-    if (cx == px && cy == py - 1) return OUEST;
-
-    // arcs spéciaux vers SOURCE ou PUITS
-    if (parentId == SOURCE) return SOURCE;
-    if (childId == PUIT) return PUIT;
-
-    // Par défaut (erreur)
-    std::cerr << "Erreur : direction impossible entre parentId = " 
-              << parentId << " et childId = " << childId << std::endl;
-    return NORD; // valeur par défaut
-}
-
 Direction Image::getInverseDirection(Direction dir) {
     switch(dir) {
         case NORD: return SUD;
-        case SUD:  return NORD;
-        case EST:  return OUEST;
-        case OUEST:return EST;
-        case SOURCE: return PUIT; // pour le graphe résiduel, inverse de SOURCE -> pixel
-        case PUIT:  return SOURCE; // inverse de pixel -> PUITS
-        default:
-            std::cerr << "Erreur : direction inconnue pour getInverseDirection" << std::endl;
-            return NORD; // valeur par défaut
+        case SUD: return NORD;
+        case EST: return OUEST;
+        case OUEST: return EST;
+        case SOURCE: return PUIT;
+        case PUIT: return SOURCE;
+        default: return NORD;
     }
 }
 
+void Image::appliquerFlot(unsigned int fx, unsigned int fy,
+                          const std::vector<Direction>& chemin,
+                          unsigned int delta) {
+    unsigned int cx = fx;
+    unsigned int cy = fy;
 
+    // Arc vers PUIT
+    tab[positionPixel(cy, cx)].flot[PUIT] += delta;
 
-void Image::appliquerFlot(unsigned int finX, unsigned int finY,
-                                const std::vector<int>& parent, unsigned int delta)
-{
-    unsigned int id = positionPixel(finX, finY);
+    // Parcourir à l'envers
+    for (int i = (int)chemin.size() - 2; i >= 0; i--) {
+        Direction d = chemin[i];
 
-    while (parent[id] != SOURCE && parent[id] != -1) {
-        unsigned int parentId = parent[id];
+        if (d == SOURCE) {
+            tab[positionPixel(cy, cx)].flot[SOURCE] += delta;
+            break;
+        }
 
-        // Déterminer la direction de parent -> id
-        Direction dir = getDirection(parentId, id); 
+        if (d == PUIT) continue;
 
-        // Ajouter le flot sur l’arc
-        tab[parentId].flot[dir] += delta;
+        // Calculer parent
+        unsigned int px = cx, py = cy;
+        if (d == NORD) py--;
+        else if (d == SUD) py++;
+        else if (d == EST) px--;
+        else if (d == OUEST) px++;
 
-        // Mettre à jour l’arc inverse pour le graphe résiduel
-        Direction dirInverse = getInverseDirection(dir);
-        tab[id].flot[dirInverse] -= delta;
+        Pixel &parent = tab[positionPixel(py, px)];
+        Pixel &enfant = tab[positionPixel(cy, cx)];
+        
+        Direction inv = getInverseDirection(d);
+        
+        // Augmenter le flot dans l'arc (parent -> enfant)
+        // Si on dépasse la capacité, reporter l'excédent sur l'arc inverse
+        unsigned int flot_avant = parent.flot[d];
+        unsigned int cap = parent.capacite[d];
+        
+        if (flot_avant + delta <= cap) {
+            // Pas de dépassement
+            parent.flot[d] += delta;
+        } else {
+            // Dépassement: saturer l'arc direct et diminuer l'arc inverse
+            unsigned int excedent = (flot_avant + delta) - cap;
+            parent.flot[d] = cap;
+            
+            // Diminuer le flot inverse (qui peut être négatif conceptuellement)
+            if (enfant.flot[inv] >= excedent) {
+                enfant.flot[inv] -= excedent;
+            } else {
+                // Si pas assez de flot inverse, on met à 0
+                enfant.flot[inv] = 0;
+            }
+        }
 
-        // Remonter dans le chemin
-        id = parentId;
-    }
-
-    // Enfin, gérer le dernier arc depuis la SOURCE
-    if (parent[id] == SOURCE) {
-        Direction dir = SOURCE; // arc source->id
-        tab[id].flot[dir] += delta;
+        cx = px;
+        cy = py;
     }
 }
-
 
 void Image::flotMaximal() {
-    std::vector<int> parent(NbLigne * NbColonne, -1); // tableau parent pour BFS
-    bool cheminExiste = true;
+    std::vector<Direction> chemin;
+    unsigned int iteration = 0;
 
-    while (cheminExiste) {
-        // 1️⃣ Trouver un chemin non saturé S -> P
-        cheminExiste = findPath(parent); // à coder : BFS remplissant parent[]
-        if (!cheminExiste) break;
+    std::cout << "Début de l'algorithme de flot maximal..." << std::endl;
 
-        // 2️⃣ Calculer le goulot de ce chemin
-        unsigned int finX, finY;
-        // récupérer les coordonnées du PUITS ou du pixel final du chemin
-        getPixelFinal(parent, finX, finY); // fonction à coder selon BFS
-        unsigned int delta = calculGoulot(finX, finY, parent);
+    while (true) {
+        unsigned int fx, fy;
+        bool cheminExiste = findPath(chemin, fx, fy);
 
-        // 3️⃣ Appliquer le flot sur tout le chemin
-        appliquerFlot(finX, finY, parent, delta);
+        if (!cheminExiste) {
+            std::cout << "Flot maximal atteint après " << iteration << " itérations." << std::endl;
+            break;
+        }
+
+        unsigned int delta = calculGoulot(fx, fy, chemin);
+
+        if (delta == 0) {
+            std::cout << "Delta = 0, arrêt." << std::endl;
+            break;
+        }
+
+        appliquerFlot(fx, fy, chemin, delta);
+        iteration++;
+
+        if (iteration % 1000 == 0) {
+            std::cout << "Itération " << iteration << std::endl;
+        }
     }
-
-    std::cout << "Flot maximal appliqué. Tous les chemins S -> P sont saturés." << std::endl;
 }
 
+void Image::calculerSegmentation() {
+    flotMaximal();
 
+    std::vector<bool> coteSource(NbLigne * NbColonne, false);
+    std::queue<Node> file;
 
+    // Pixels accessibles depuis SOURCE
+    for (unsigned int y = 0; y < NbLigne; y++) {
+        for (unsigned int x = 0; x < NbColonne; x++) {
+            Pixel &p = tab[positionPixel(y, x)];
+            if (p.capacite[SOURCE] > p.flot[SOURCE]) {
+                coteSource[positionPixel(y, x)] = true;
+                file.push({x, y});
+            }
+        }
+    }
 
+    // BFS dans graphe résiduel
+    static Direction directions[4] = {NORD, SUD, EST, OUEST};
+
+    while (!file.empty()) {
+        Node u = file.front();
+        file.pop();
+
+        Pixel &p = tab[positionPixel(u.y, u.x)];
+
+        for (Direction d : directions) {
+            unsigned int vx = u.x, vy = u.y;
+
+            if (d == NORD && vy > 0) vy--;
+            else if (d == SUD && vy < NbLigne - 1) vy++;
+            else if (d == EST && vx < NbColonne - 1) vx++;
+            else if (d == OUEST && vx > 0) vx--;
+            else continue;
+
+            int residuel = (int)p.capacite[d] - (int)p.flot[d];
+            if (residuel <= 0) continue;
+
+            unsigned int posV = positionPixel(vy, vx);
+
+            if (!coteSource[posV]) {
+                coteSource[posV] = true;
+                file.push({vx, vy});
+            }
+        }
+    }
+
+    // Binarisation: SOURCE=0 (noir), PUIT=255 (blanc)
+    for (unsigned int y = 0; y < NbLigne; y++) {
+        for (unsigned int x = 0; x < NbColonne; x++) {
+            unsigned int pos = positionPixel(y, x);
+            if (coteSource[pos]) {
+                tab[pos].intensite = 0;    // Noir (sombre)
+            } else {
+                tab[pos].intensite = 255;  // Blanc (clair)
+            }
+        }
+    }
+
+    std::cout << "Segmentation terminée." << std::endl;
+}
 
 int main() {
     Image image;
-    image.importePGM("test.pgm");
-    image.calculCapacitesImage(15,15);
-    image.afficheIntensitie();
-    std::vector<Direction> chemin;
-    image.findPath(chemin);
-    image.afficherChemin(chemin);
-
-
+    
+    if (!image.importePGM("test.pgm")) {
+        return 1;
+    }
+    
+    std::cout << "Image chargée: " << image.getcolonne() << "x" << image.getligne() << std::endl;
+    
+    // Paramètres recommandés pour test.pgm
+    double sigma = 30.0;
+    double alpha = 2.0;
+    
+    image.calculCapacitesImage(sigma, alpha);
+    std::cout << "Capacités calculées (sigma=" << sigma << ", alpha=" << alpha << ")" << std::endl;
+    
+    image.calculerSegmentation();
+    
+    image.sauvgardePGM("test_segmente.pgm");
+    std::cout << "Résultat sauvegardé dans test_segmente.pgm" << std::endl;
     
     return 0;
 }
