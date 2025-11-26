@@ -56,6 +56,7 @@ public:
     bool exporterPGM(const std::string& nomFichier, int maxVal);
 
     void calculCapacitePixel(unsigned int x, unsigned int y, double sigma, double alpha);
+    void calculCapacitesImage(double sigma, double alpha);
 
 
 };

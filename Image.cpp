@@ -170,39 +170,44 @@ void Image::calculCapacitePixel(unsigned int x, unsigned int y, double sigma, do
 
     int I = p.intensite;
 
-    // ----------- CAPACITÉ SOURCE -> pixel -----------
     if (I == 0) p.capacite[SOURCE] = 0;
     else p.capacite[SOURCE] = (int)round(-alpha * log((double)I / 255.0) * 100);
 
-    // ----------- CAPACITÉ pixel -> PUITS -----------
     if (I == 255) p.capacite[PUIT] = 0;
     else p.capacite[PUIT] = (int)round(-alpha * log((double)(255 - I) / 255.0) * 100);
 
-    // ----------- CAPACITÉS vers les voisins -----------
 
-    // NORD
     if (pixelExiste(x - 1, y)) {
         Pixel n = accesEntourage(x, y, NORD);
         p.capacite[NORD] = (unsigned int)round(100.0 * exp(-((double)(I - n.intensite) * (I - n.intensite)) / (2.0 * sigma * sigma)));
     } else p.capacite[NORD] = 0;
 
-    // SUD
     if (pixelExiste(x + 1, y)) {
         Pixel s = accesEntourage(x, y, SUD);
         p.capacite[SUD] = (unsigned int)round(100.0 * exp(-((double)(I - s.intensite) * (I - s.intensite)) / (2.0 * sigma * sigma)));
     } else p.capacite[SUD] = 0;
 
-    // OUEST
     if (pixelExiste(x, y - 1)) {
         Pixel o = accesEntourage(x, y, OUEST);
         p.capacite[OUEST] = (unsigned int)round(100.0 * exp(-((double)(I - o.intensite) * (I - o.intensite)) / (2.0 * sigma * sigma)));
     } else p.capacite[OUEST] = 0;
 
-    // EST
     if (pixelExiste(x, y + 1)) {
         Pixel e = accesEntourage(x, y, EST);
         p.capacite[EST] = (unsigned int)round(100.0 * exp(-((double)(I - e.intensite) * (I - e.intensite)) / (2.0 * sigma * sigma)));
     } else p.capacite[EST] = 0;
+}
+
+
+void Image::calculCapacitesImage(double sigma, double alpha)
+{
+    for (unsigned int y = 0; y < NbLigne; y++)
+    {
+        for (unsigned int x = 0; x < NbColonne; x++)
+        {
+            calculCapacitePixel(x, y, sigma, alpha);
+        }
+    }
 }
 
 
@@ -213,21 +218,9 @@ void Image::calculCapacitePixel(unsigned int x, unsigned int y, double sigma, do
 int main() {
     Image image;
     image.importePGM("test.pgm");
+    image.calculCapacitesImage(15,15);
     image.afficheIntensitie();
 
-    // On calcule les capacités autour de la case (1,1)
-    image.calculCapacitePixel(1,1,100,15);
-
     
-    Pixel voisin = image.accesEntourage(0,1,EST);//voisin = (1 ,1)
-    voisin.affichePixel();
-
-    // On affiche ses capacités qui ont bien été calculées
-    std::cout << voisin.capacite[EST] << std::endl;
-    std::cout << voisin.capacite[NORD] << std::endl;
-    std::cout << voisin.capacite[SUD] << std::endl;
-    std::cout << voisin.capacite[OUEST] << std::endl;
-    std::cout << voisin.capacite[SOURCE] << std::endl;
-
     return 0;
 }
