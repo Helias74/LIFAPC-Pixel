@@ -32,9 +32,6 @@ public:
     Image();
     Image(unsigned int l, unsigned int c);
 
-    // ---- Données membre ---
-    Pixel p; // Le pixel courant si utilisation p.fonction()
-
     // ---- Accès aux dimensions ----
     unsigned int getligne() const;
     unsigned int getcolonne() const;
@@ -51,9 +48,9 @@ public:
 
     // ---- Capacités ----
     
-    void deplacePixelCourant(Direction dir);
+    //void deplacePixelCourant(Direction dir);
 
-    Pixel accesEntourage(Direction dir); //accès aux voisins + puit + source
+    Pixel accesEntourage(unsigned int x,unsigned int y,Direction dir); //accès aux voisins + puit + source
     
     bool exporterPGM(const std::string& nomFichier, int maxVal);
 

@@ -115,6 +115,7 @@ Pixel Image::getPixel1D(unsigned int t) {
     return tab[t];
 }
 
+/*
 void Image::deplacePixelCourant(Direction dir) {
 
     // Vérifier que le pixel courant est valide
@@ -166,12 +167,15 @@ void Image::deplacePixelCourant(Direction dir) {
 
 
 }
+    */
 
-Pixel Image::accesEntourage(Direction dir) {
-    Pixel voisin = p;
+Pixel Image::accesEntourage(unsigned int x,unsigned int y,Direction dir) {
+    
+    Pixel voisin = tab[y * NbColonne + x];
 
+    //Vérife si pixel donnée existe bien dans le tableau
     if (!pixelExiste(voisin.PosX, voisin.PosY)) {
-        std::cout << "Pixel courant invalide" << std::endl;
+        std::cout << "Pixel courant invalide pas dans le tableau" << std::endl;
         return voisin;
     }
 
@@ -179,26 +183,37 @@ Pixel Image::accesEntourage(Direction dir) {
         if (pixelExiste(voisin.PosX- 1, voisin.PosY )) {
             voisin.PosX -= 1;
         }
+        else {
+            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
+        }
     }
     else if (dir == EST) {
         if (pixelExiste(voisin.PosX + 1, voisin.PosY )) {
             voisin.PosX += 1;
+        }
+        else {
+            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
         }
     }
     else if (dir == NORD) {
         if (pixelExiste(voisin.PosX , voisin.PosY - 1)) {
             voisin.PosY -= 1;
         }
+        else {
+            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
+        }
     }
     else if (dir == SUD) {
         if (pixelExiste(voisin.PosX , voisin.PosY + 1)) {
             voisin.PosY += 1;
         }
+        else {
+            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
+        }
     }
     else {
         std::cout << "Direction non valide pour un voisin" << std::endl;
     }
-
     return voisin;
 }
 
@@ -239,5 +254,7 @@ int main (){
     Image image;
     image.importePGM("test.pgm");
     image.afficheIntensitie();
-    image.p.affichePixel();
+    Pixel voisin;
+    voisin = image.accesEntourage(1,1,EST);
+    voisin.affichePixel();
 }

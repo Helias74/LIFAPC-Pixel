@@ -14,7 +14,7 @@ Pixel::Pixel() :intensite(0),PosX(0),PosY(0) {
 void Pixel::affichePixel(){
     std::cout<<"=== Affichage Pixel ==="<<std::endl;
     std::cout<<"Position X : "<<PosX<<std::endl;
-    std::cout<<"Position Y : "<<PosX<<std::endl;
+    std::cout<<"Position Y : "<<PosY<<std::endl;
     std::cout<<"Intensité : "<<intensite<<std::endl;
     std::cout<<"=== Fin d'affichage Pixel ==="<<std::endl;
 }
