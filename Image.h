@@ -50,9 +50,13 @@ public:
     
     //void deplacePixelCourant(Direction dir);
 
-    Pixel accesEntourage(unsigned int x,unsigned int y,Direction dir); //accès aux voisins + puit + source
+
+    Pixel& accesEntourage(unsigned int x,unsigned int y,Direction dir);
     
     bool exporterPGM(const std::string& nomFichier, int maxVal);
+
+    void calculCapacitePixel(unsigned int x, unsigned int y, double sigma, double alpha);
+
 
 };
 

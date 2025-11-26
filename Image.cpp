@@ -115,107 +115,23 @@ Pixel Image::getPixel1D(unsigned int t) {
     return tab[t];
 }
 
-/*
-void Image::deplacePixelCourant(Direction dir) {
 
-    // Vérifier que le pixel courant est valide
-    if (!pixelExiste(p.PosX, p.PosY)) {
-        std::cout << "Pixel courant invalide, impossible de déplacer." << std::endl;
-        return;
-    }
+Pixel& Image::accesEntourage(unsigned int x,unsigned int y,Direction dir) {
+    int nx = x;
+    int ny = y;
 
-    // Déplacements
-    if (dir == OUEST) {
-        if (pixelExiste(p.PosX- 1, p.PosY )) {
-            p.PosX -= 1;
-            p.intensite = tab[p.PosY * NbColonne + p.PosX].intensite;
-        }
-        else {
-            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
-        }
-    }
-    else if (dir == EST) {
-        if (pixelExiste(p.PosX + 1, p.PosY )) {
-            p.PosX += 1;
-            p.intensite = tab[p.PosY * NbColonne + p.PosX].intensite;
-        }
-        else {
-            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
-        }
-    }
-    else if (dir == NORD) {
-        if (pixelExiste(p.PosX , p.PosY - 1)) {
-            p.PosY -= 1;
-            p.intensite = tab[p.PosY * NbColonne + p.PosX].intensite;
-        }
-        else {
-            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
-        }
-    }
-    else if (dir == SUD) {
-        if (pixelExiste(p.PosX , p.PosY + 1)) {
-            p.PosY += 1;
-            p.intensite = tab[p.PosY * NbColonne + p.PosX].intensite;
-        }
-        else {
-            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
-        }
-    }
+    if (dir == OUEST && pixelExiste(x - 1, y)) nx = x - 1;
+    else if (dir == EST && pixelExiste(x + 1, y)) nx = x + 1;
+    else if (dir == NORD && pixelExiste(x, y - 1)) ny = y - 1;
+    else if (dir == SUD && pixelExiste(x, y + 1)) ny = y + 1;
     else {
-        std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
+        std::cout << "Direction non valide ou pixel inexistant" << std::endl;
+        return tab[y * NbColonne + x]; // retourne pixel original
     }
 
-
+    return tab[ny * NbColonne + nx]; // retourne le vrai pixel
 }
-    */
 
-Pixel Image::accesEntourage(unsigned int x,unsigned int y,Direction dir) {
-    
-    Pixel voisin = tab[y * NbColonne + x];
-
-    //Vérife si pixel donnée existe bien dans le tableau
-    if (!pixelExiste(voisin.PosX, voisin.PosY)) {
-        std::cout << "Pixel courant invalide pas dans le tableau" << std::endl;
-        return voisin;
-    }
-
-    if (dir == OUEST) {
-        if (pixelExiste(voisin.PosX- 1, voisin.PosY )) {
-            voisin.PosX -= 1;
-        }
-        else {
-            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
-        }
-    }
-    else if (dir == EST) {
-        if (pixelExiste(voisin.PosX + 1, voisin.PosY )) {
-            voisin.PosX += 1;
-        }
-        else {
-            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
-        }
-    }
-    else if (dir == NORD) {
-        if (pixelExiste(voisin.PosX , voisin.PosY - 1)) {
-            voisin.PosY -= 1;
-        }
-        else {
-            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
-        }
-    }
-    else if (dir == SUD) {
-        if (pixelExiste(voisin.PosX , voisin.PosY + 1)) {
-            voisin.PosY += 1;
-        }
-        else {
-            std::cout << "Direction non valide pour déplacer le pixel." << std::endl;
-        }
-    }
-    else {
-        std::cout << "Direction non valide pour un voisin" << std::endl;
-    }
-    return voisin;
-}
 
 
 
@@ -248,13 +164,70 @@ bool Image::exporterPGM(const std::string& nomFichier, int maxVal = 255)
 
 
 
+void Image::calculCapacitePixel(unsigned int x, unsigned int y, double sigma, double alpha)
+{
+    Pixel& p = tab[y*NbColonne + x];
+
+    int I = p.intensite;
+
+    // ----------- CAPACITÉ SOURCE -> pixel -----------
+    if (I == 0) p.capacite[SOURCE] = 0;
+    else p.capacite[SOURCE] = (int)round(-alpha * log((double)I / 255.0) * 100);
+
+    // ----------- CAPACITÉ pixel -> PUITS -----------
+    if (I == 255) p.capacite[PUIT] = 0;
+    else p.capacite[PUIT] = (int)round(-alpha * log((double)(255 - I) / 255.0) * 100);
+
+    // ----------- CAPACITÉS vers les voisins -----------
+
+    // NORD
+    if (pixelExiste(x - 1, y)) {
+        Pixel n = accesEntourage(x, y, NORD);
+        p.capacite[NORD] = (unsigned int)round(100.0 * exp(-((double)(I - n.intensite) * (I - n.intensite)) / (2.0 * sigma * sigma)));
+    } else p.capacite[NORD] = 0;
+
+    // SUD
+    if (pixelExiste(x + 1, y)) {
+        Pixel s = accesEntourage(x, y, SUD);
+        p.capacite[SUD] = (unsigned int)round(100.0 * exp(-((double)(I - s.intensite) * (I - s.intensite)) / (2.0 * sigma * sigma)));
+    } else p.capacite[SUD] = 0;
+
+    // OUEST
+    if (pixelExiste(x, y - 1)) {
+        Pixel o = accesEntourage(x, y, OUEST);
+        p.capacite[OUEST] = (unsigned int)round(100.0 * exp(-((double)(I - o.intensite) * (I - o.intensite)) / (2.0 * sigma * sigma)));
+    } else p.capacite[OUEST] = 0;
+
+    // EST
+    if (pixelExiste(x, y + 1)) {
+        Pixel e = accesEntourage(x, y, EST);
+        p.capacite[EST] = (unsigned int)round(100.0 * exp(-((double)(I - e.intensite) * (I - e.intensite)) / (2.0 * sigma * sigma)));
+    } else p.capacite[EST] = 0;
+}
 
 
-int main (){
+
+
+
+
+int main() {
     Image image;
     image.importePGM("test.pgm");
     image.afficheIntensitie();
-    Pixel voisin;
-    voisin = image.accesEntourage(1,1,EST);
+
+    // On calcule les capacités autour de la case (1,1)
+    image.calculCapacitePixel(1,1,100,15);
+
+    
+    Pixel voisin = image.accesEntourage(0,1,EST);//voisin = (1 ,1)
     voisin.affichePixel();
+
+    // On affiche ses capacités qui ont bien été calculées
+    std::cout << voisin.capacite[EST] << std::endl;
+    std::cout << voisin.capacite[NORD] << std::endl;
+    std::cout << voisin.capacite[SUD] << std::endl;
+    std::cout << voisin.capacite[OUEST] << std::endl;
+    std::cout << voisin.capacite[SOURCE] << std::endl;
+
+    return 0;
 }
