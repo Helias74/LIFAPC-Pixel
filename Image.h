@@ -58,7 +58,7 @@ public:
 
     Pixel& accesEntourage(unsigned int x,unsigned int y,Direction dir);
     
-    bool exporterPGM(const std::string& nomFichier, int maxVal);
+    bool exporterPGM(const std::string& nomFichier);
 
     void calculCapacitePixel(unsigned int x, unsigned int y, double sigma, double alpha);
     void calculCapacitesImage(double sigma, double alpha);

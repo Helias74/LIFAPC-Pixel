@@ -146,7 +146,7 @@ Pixel& Image::accesEntourage(unsigned int x, unsigned int y, Direction dir) {
     return tab[ny * NbColonne + nx];
 }
 
-bool Image::exporterPGM(const std::string& nomFichier, int maxVal) {
+bool Image::exporterPGM(const std::string& nomFichier) {
     return sauvgardePGM(nomFichier);
 }
 
