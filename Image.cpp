@@ -526,27 +526,3 @@ void Image::calculerSegmentation() {
 
     std::cout << "Segmentation terminée." << std::endl;
 }
-
-int main() {
-    Image image;
-    
-    if (!image.importePGM("test.pgm")) {
-        return 1;
-    }
-    
-    std::cout << "Image chargée: " << image.getcolonne() << "x" << image.getligne() << std::endl;
-    
-    // Paramètres recommandés pour test.pgm
-    double sigma = 30.0;
-    double alpha = 2.0;
-    
-    image.calculCapacitesImage(sigma, alpha);
-    std::cout << "Capacités calculées (sigma=" << sigma << ", alpha=" << alpha << ")" << std::endl;
-    
-    image.calculerSegmentation();
-    
-    image.sauvgardePGM("test_segmente.pgm");
-    std::cout << "Résultat sauvegardé dans test_segmente.pgm" << std::endl;
-    
-    return 0;
-}
