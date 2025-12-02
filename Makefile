@@ -1,44 +1,27 @@
-# Nom de l'exécutable
 EXEC = image
 
-# Compilateur
 CXX = g++
-
-# Options du compilateur
 CXXFLAGS = -Wall -Wextra -std=c++17
 
-# Fichiers sources
-SRC = Image.cpp Pixel.cpp main.cpp
+image: Image.o Pixel.o main.o
+	g++ -Wall -Wextra -std=c++17 -o image Image.o Pixel.o main.o
 
-# Fichiers objets générés automatiquement
-OBJ = $(SRC:.cpp=.o)
-
-# Fichiers d'en-tête (dépendances)
-HEADERS = Image.h Pixel.h
-
-# Règle de compilation finale
-$(EXEC): $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $(EXEC) $(OBJ)
-
-# Règle de compilation des .cpp en .o avec dépendances
-%.o: %.cpp $(HEADERS)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Dépendances spécifiques (optionnel mais recommandé)
 Image.o: Image.cpp Image.h Pixel.h
+	g++ -Wall -Wextra -std=c++17 -c Image.cpp -o Image.o
+
 Pixel.o: Pixel.cpp Pixel.h
+	g++ -Wall -Wextra -std=c++17 -c Pixel.cpp -o Pixel.o
+
 main.o: main.cpp Image.h Pixel.h
+	g++ -Wall -Wextra -std=c++17 -c main.cpp -o main.o
 
-# Nettoyage des .o
 clean:
-	rm -f $(OBJ)
+	rm -f Image.o Pixel.o main.o
 
-# Nettoyage complet (objets + exécutable)
 mrproper: clean
-	rm -f $(EXEC)
+	rm -f image
 
-# Règle pour rebuild complet
-rebuild: mrproper $(EXEC)
+rebuild: mrproper image
 
-# Règle phony (pour éviter les conflits avec des fichiers nommés clean, etc.)
+# Règle phony (Pour pas de pbl de nom)
 .PHONY: clean mrproper rebuild

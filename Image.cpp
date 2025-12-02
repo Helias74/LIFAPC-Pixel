@@ -36,7 +36,6 @@ bool Image::importePGM(const std::string& nomFichier) {
     }
 
     std::string ligne;
-    // Ignorer les commentaires et lire P2
     do {
         std::getline(fichier, ligne);
     } while (ligne[0] == '#');
@@ -46,7 +45,6 @@ bool Image::importePGM(const std::string& nomFichier) {
         return false;
     }
 
-    // Lire dimensions (en ignorant commentaires)
     do {
         std::getline(fichier, ligne);
     } while (ligne[0] == '#');
@@ -54,7 +52,6 @@ bool Image::importePGM(const std::string& nomFichier) {
     std::istringstream iss(ligne);
     iss >> NbColonne >> NbLigne;
 
-    // Lire valeur max
     int maxInt;
     do {
         std::getline(fichier, ligne);
@@ -70,7 +67,6 @@ bool Image::importePGM(const std::string& nomFichier) {
 
     tab.resize(NbLigne * NbColonne);
 
-    // Lire intensités
     for (unsigned int i = 0; i < NbLigne; i++) {
         for (unsigned int j = 0; j < NbColonne; j++) {
             int val;
@@ -79,7 +75,6 @@ bool Image::importePGM(const std::string& nomFichier) {
             tab[pos].intensite = val;
             tab[pos].PosX = j;
             tab[pos].PosY = i;
-            // Initialiser flots à 0
             for (int d = 0; d < 6; d++) {
                 tab[pos].flot[d] = 0;
             }
@@ -127,20 +122,19 @@ Pixel Image::getPixel1D(unsigned int t) {
     return tab[t];
 }
 
-// CORRECTION: La logique de direction était inversée
 Pixel& Image::accesEntourage(unsigned int x, unsigned int y, Direction dir) {
     int nx = x;
     int ny = y;
 
     // IMPORTANT: i=ligne (y), j=colonne (x)
     if (dir == OUEST && x > 0) {
-        nx = x - 1;  // colonne -1
+        nx = x - 1;  
     } else if (dir == EST && x < NbColonne - 1) {
-        nx = x + 1;  // colonne +1
+        nx = x + 1;  
     } else if (dir == NORD && y > 0) {
-        ny = y - 1;  // ligne -1
+        ny = y - 1;  
     } else if (dir == SUD && y < NbLigne - 1) {
-        ny = y + 1;  // ligne +1
+        ny = y + 1; 
     }
 
     return tab[ny * NbColonne + nx];
@@ -211,7 +205,7 @@ void Image::calculCapacitesImage(double sigma, double alpha) {
     }
 }
 
-bool Image::findPath(std::vector<Direction> &chemin, unsigned int &fx, unsigned int &fy) {
+bool Image::trouveChemin(std::vector<Direction> &chemin, unsigned int &fx, unsigned int &fy) {
     unsigned int W = NbColonne;
     unsigned int H = NbLigne;
 
@@ -229,7 +223,7 @@ bool Image::findPath(std::vector<Direction> &chemin, unsigned int &fx, unsigned 
         }
     }
 
-    // BFS
+
     while (!Q.empty()) {
         Node u = Q.front();
         Q.pop();
@@ -237,12 +231,10 @@ bool Image::findPath(std::vector<Direction> &chemin, unsigned int &fx, unsigned 
         unsigned int pos = positionPixel(u.y, u.x);
         Pixel& P = tab[pos];
 
-        // Test vers PUIT
         if (P.capacite[PUIT] > P.flot[PUIT]) {
             fx = u.x;
             fy = u.y;
 
-            // Reconstruction du chemin
             chemin.clear();
             chemin.push_back(PUIT);
 
@@ -253,7 +245,6 @@ bool Image::findPath(std::vector<Direction> &chemin, unsigned int &fx, unsigned 
                 Direction d = (Direction)parent[positionPixel(cy, cx)];
                 chemin.push_back(d);
 
-                // Reculer
                 if (d == NORD) cy++;
                 else if (d == SUD) cy--;
                 else if (d == EST) cx--;
@@ -265,7 +256,6 @@ bool Image::findPath(std::vector<Direction> &chemin, unsigned int &fx, unsigned 
             return true;
         }
 
-        // Explorer 4 directions
         static Direction dirList[4] = {NORD, SUD, EST, OUEST};
 
         for (Direction d : dirList) {
@@ -284,7 +274,6 @@ bool Image::findPath(std::vector<Direction> &chemin, unsigned int &fx, unsigned 
             Pixel &pU = tab[pos];
             Pixel &pV = tab[posV];
             
-            // Capacité résiduelle = Cap(u,v) - F(u,v) + F(v,u)
             Direction inv = getInverseDirection(d);
             int residuel = (int)pU.capacite[d] - (int)pU.flot[d] + (int)pV.flot[inv];
 
@@ -299,7 +288,7 @@ bool Image::findPath(std::vector<Direction> &chemin, unsigned int &fx, unsigned 
 }
 
 unsigned int Image::calculGoulot(unsigned int fx, unsigned int fy, const std::vector<Direction>& chemin) {
-    unsigned int bottleneck = UINT_MAX;
+    unsigned int goulot = UINT_MAX;
 
     unsigned int cx = fx;
     unsigned int cy = fy;
@@ -307,7 +296,7 @@ unsigned int Image::calculGoulot(unsigned int fx, unsigned int fy, const std::ve
     // Premier arc: vers PUIT
     Pixel &pFinal = tab[positionPixel(cy, cx)];
     unsigned int resPuit = pFinal.capacite[PUIT] - pFinal.flot[PUIT];
-    bottleneck = std::min(bottleneck, resPuit);
+    goulot = std::min(goulot, resPuit);
 
     for (int i = (int)chemin.size() - 2; i >= 0; i--) {
         Direction d = chemin[i];
@@ -315,13 +304,12 @@ unsigned int Image::calculGoulot(unsigned int fx, unsigned int fy, const std::ve
         if (d == SOURCE) {
             Pixel &p = tab[positionPixel(cy, cx)];
             unsigned int res = p.capacite[SOURCE] - p.flot[SOURCE];
-            bottleneck = std::min(bottleneck, res);
+            goulot = std::min(goulot, res);
             break;
         }
 
         if (d == PUIT) continue;
 
-        // Calculer parent
         unsigned int px = cx, py = cy;
         if (d == NORD) py--;
         else if (d == SUD) py++;
@@ -331,14 +319,12 @@ unsigned int Image::calculGoulot(unsigned int fx, unsigned int fy, const std::ve
         Pixel &parent = tab[positionPixel(py, px)];
         Pixel &enfant = tab[positionPixel(cy, cx)];
         
-        // Selon le sujet: Cap(p,q) - F(p,q) + F(q,p)
         Direction inv = getInverseDirection(d);
         int resid = (int)parent.capacite[d] - (int)parent.flot[d] + (int)enfant.flot[inv];
         
         if (resid > 0) {
-            bottleneck = std::min(bottleneck, (unsigned int)resid);
+            goulot = std::min(goulot, (unsigned int)resid);
         } else {
-            // Pas de capacité résiduelle, ne devrait pas arriver
             return 0;
         }
 
@@ -346,7 +332,7 @@ unsigned int Image::calculGoulot(unsigned int fx, unsigned int fy, const std::ve
         cy = py;
     }
 
-    return bottleneck;
+    return goulot;
 }
 
 void Image::afficherChemin(const std::vector<Direction>& chemin) {
@@ -381,10 +367,8 @@ void Image::appliquerFlot(unsigned int fx, unsigned int fy,
     unsigned int cx = fx;
     unsigned int cy = fy;
 
-    // Arc vers PUIT
     tab[positionPixel(cy, cx)].flot[PUIT] += delta;
 
-    // Parcourir à l'envers
     for (int i = (int)chemin.size() - 2; i >= 0; i--) {
         Direction d = chemin[i];
 
@@ -395,7 +379,6 @@ void Image::appliquerFlot(unsigned int fx, unsigned int fy,
 
         if (d == PUIT) continue;
 
-        // Calculer parent
         unsigned int px = cx, py = cy;
         if (d == NORD) py--;
         else if (d == SUD) py++;
@@ -407,24 +390,18 @@ void Image::appliquerFlot(unsigned int fx, unsigned int fy,
         
         Direction inv = getInverseDirection(d);
         
-        // Augmenter le flot dans l'arc (parent -> enfant)
-        // Si on dépasse la capacité, reporter l'excédent sur l'arc inverse
         unsigned int flot_avant = parent.flot[d];
         unsigned int cap = parent.capacite[d];
         
         if (flot_avant + delta <= cap) {
-            // Pas de dépassement
             parent.flot[d] += delta;
         } else {
-            // Dépassement: saturer l'arc direct et diminuer l'arc inverse
             unsigned int excedent = (flot_avant + delta) - cap;
             parent.flot[d] = cap;
             
-            // Diminuer le flot inverse (qui peut être négatif conceptuellement)
             if (enfant.flot[inv] >= excedent) {
                 enfant.flot[inv] -= excedent;
             } else {
-                // Si pas assez de flot inverse, on met à 0
                 enfant.flot[inv] = 0;
             }
         }
@@ -442,7 +419,7 @@ void Image::flotMaximal() {
 
     while (true) {
         unsigned int fx, fy;
-        bool cheminExiste = findPath(chemin, fx, fy);
+        bool cheminExiste = trouveChemin(chemin, fx, fy);
 
         if (!cheminExiste) {
             std::cout << "Flot maximal atteint après " << iteration << " itérations." << std::endl;
@@ -471,7 +448,6 @@ void Image::calculerSegmentation() {
     std::vector<bool> coteSource(NbLigne * NbColonne, false);
     std::queue<Node> file;
 
-    // Pixels accessibles depuis SOURCE
     for (unsigned int y = 0; y < NbLigne; y++) {
         for (unsigned int x = 0; x < NbColonne; x++) {
             Pixel &p = tab[positionPixel(y, x)];
@@ -482,7 +458,6 @@ void Image::calculerSegmentation() {
         }
     }
 
-    // BFS dans graphe résiduel
     static Direction directions[4] = {NORD, SUD, EST, OUEST};
 
     while (!file.empty()) {
@@ -523,6 +498,5 @@ void Image::calculerSegmentation() {
             }
         }
     }
-
     std::cout << "Segmentation terminée." << std::endl;
 }

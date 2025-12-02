@@ -15,8 +15,7 @@ int main() {
     }
     
     std::cout << "Image chargée: " << image.getcolonne() << "x" << image.getligne() << std::endl;
-    
-    // Paramètres recommandés pour test.pgm
+
     double sigma = 30.0;
     double alpha = 2.0;
     

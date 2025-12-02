@@ -1,9 +1,7 @@
 #include "Pixel.h"
 #include <iostream>
 
-// --- Constructeur par défaut ---
 Pixel::Pixel() :intensite(0),PosX(0),PosY(0) {
-    // Initialisation des 4 capacités et flots voisins
     for (int k = 0; k < 4; ++k) {
         capacite[k] = 0;
         flot[k] = 0;
